@@ -231,7 +231,7 @@ namespace NuGetGallery
         public virtual ActionResult Delete(string accountName)
         {
             var currentUser = GetCurrentUser();
-            var user = _userService.FindByUsername(accountName);
+            var user = UserService.FindByUsername(accountName);
             if (user == null || user.IsDeleted || (user is Organization))
             {
                 return HttpNotFound("User not found.");
@@ -492,7 +492,7 @@ namespace NuGetGallery
         public virtual ActionResult Profiles(string username, int page = 1)
         {
             var currentUser = GetCurrentUser();
-            var user = _userService.FindByUsername(username);
+            var user = UserService.FindByUsername(username);
             if (user == null || user.IsDeleted)
             {
                 return HttpNotFound();
