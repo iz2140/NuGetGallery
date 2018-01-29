@@ -86,5 +86,12 @@ namespace NuGetGallery
         public static ActionRequiringAccountPermissions HandlePackageOwnershipRequest = 
             new ActionRequiringAccountPermissions(
                 accountPermissionsRequirement: RequireOwnerOrOrganizationAdmin);
+
+        /// <summary>
+        /// The action of managing an account.
+        /// </summary>
+        public static ActionRequiringAccountPermissions ManageAccount =
+            new ActionRequiringAccountPermissions(
+                accountPermissionsRequirement: RequireOwnerOrOrganizationAdmin);
     }
 }

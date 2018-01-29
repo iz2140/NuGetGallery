@@ -1,0 +1,212 @@
+﻿@model OrganizationAccountViewModel
+@{
+    ViewBag.Title = "Manage Organization";
+    Layout = "~/Views/Shared/Gallery/Layout.cshtml";
+
+    var account = Model.Account;
+}
+
+<section role="main" class="container main-container page-account-settings">
+    <div class="row">
+        <div class="col-md-12">
+            <h1>
+                <a href="@Url.ManageMyOrganizations()">Manage Organizations</a>
+                &gt;
+                <a href="@Url.User(Model.Account)">@Model.AccountName</a>
+            </h1>
+        </div>
+
+        <div class="@ViewHelpers.GetColumnClasses(ViewBag)">
+            @if (Model.HasUnconfirmedEmailAddress && Model.HasConfirmedEmailAddress)
+            {
+                @ViewHelpers.AlertInfo(@<text>
+                    A new email address has been registered for this organization: <strong>@account.UnconfirmedEmailAddress</strong><br />
+
+                    @if (Model.HasConfirmedEmailAddress)
+                    {
+                        <text>We will continue sending notification emails to the old verified email address (@account.EmailAddress)
+                        until the <a href="@Url.OrganizationConfirmationRequired(account.Username)">new email address is verified.</a></text>
+                    }
+                    else
+                    {
+                        <text>We will only send notification emails after the
+                            <a href="@Url.OrganizationConfirmationRequired(account.Username)">email address has been verified.</a><br />
+                        </text>
+                    }
+                </text>)
+            }
+
+            @if (!account.Confirmed)
+            {
+                @ViewHelpers.AlertInfo(@<text>
+                    Uploading packages requires that you <a href="@Url.OrganizationConfirmationRequired(account.Username)">confirm the account</a>.
+                    Why not get that out of the way now?
+                </text>)
+            }
+
+
+            @ViewHelpers.Section(this,
+                "change-email",
+                @<text>@(Model.HasUnconfirmedEmailAddress ? "Pending Email Address" : "Email Address")</text>,
+                @<text>@Model.CurrentEmailAddress</text>,
+                @<text>
+                    @if (Model.HasConfirmedEmailAddress && Model.HasUnconfirmedEmailAddress)
+                    {
+                        using (Html.BeginForm("CancelChangeEmail", "Organizations"))
+                        {
+                            @Html.AntiForgeryToken()
+                            @Html.HiddenFor(m => m.AccountName);
+
+                            <div class="row form-group">
+                                <div class="col-sm-6">
+                                    <input type="submit" class="btn btn-primary form-control" value="Reset to Confirmed Email Address" />
+                                </div>
+                                <div class="col-sm-6">
+                                    <a href="#" role="button" class="btn btn-default form-control" id="cancel-change-email">
+                                        Cancel
+                                    </a>
+                                </div>
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        using (Html.BeginForm("ChangeEmail", "Organizations"))
+                        {
+                            @Html.AntiForgeryToken()
+                            @Html.HiddenFor(m => m.AccountName);
+
+                            if (Model.HasPassword)
+                            {
+                                <div class="form-group @Html.HasErrorFor(m => m.ChangeEmail.Password)">
+                                    @Html.ShowLabelFor(m => m.ChangeEmail.Password)
+                                    @Html.ShowPasswordFor(m => m.ChangeEmail.Password)
+                                    @Html.ShowValidationMessagesFor(m => m.ChangeEmail.Password)
+                                </div>
+                            }
+                            <div class="form-group @Html.HasErrorFor(m => m.ChangeEmail.NewEmail)">
+                                @Html.ShowLabelFor(m => m.ChangeEmail.NewEmail)
+                                @Html.ShowTextBoxFor(m => m.ChangeEmail.NewEmail)
+                                @Html.ShowValidationMessagesFor(m => m.ChangeEmail.NewEmail)
+                            </div>
+
+                            <div class="row form-group">
+                                <div class="col-sm-6">
+                                    <input type="submit" class="btn btn-primary form-control" value="Save" />
+                                </div>
+                                <div class="col-sm-6">
+                                    <a href="#" role="button" class="btn btn-default form-control" id="cancel-change-email">
+                                        Cancel
+                                    </a>
+                                </div>
+                            </div>
+                        }
+                    }
+                </text>,
+                ViewData.ModelState.Keys.Any(x => x.StartsWith("ChangeEmail")))
+
+            @ViewHelpers.Section(this,
+                "change-notifications",
+                @<text>Email Notifications</text>,
+                @<text>
+                    @(Model.ChangeNotifications.EmailAllowed ? "Users can contact" : "Users can not contact") |
+                    @(Model.ChangeNotifications.NotifyPackagePushed ? "Receiving package push notifications" : "Not receiving package push notifications")
+                </text>,
+                @<text>
+                    @using (Html.BeginRouteForm("ChangeOrganizationEmailSubscription"))
+                    {
+                        @Html.AntiForgeryToken()
+                        @Html.HiddenFor(m => m.AccountName);
+
+                        <div class="checkbox">
+                            <label>
+                                @Html.ShowCheckboxFor(x => x.ChangeNotifications.EmailAllowed)
+                                <b>Users can contact this organization through the @Config.Current.Brand</b>
+                            </label>
+                            <div class="label-sibling">
+                                This setting allows registered users of the site to contact this organization about
+                                packages that the organization owns using the <em>Contact Owners</em> form, or to request
+                                that this organization becomes an owner of their package. Disabling this setting means
+                                users cannot contact this organization for these reasons.
+                            </div>
+                        </div>
+
+                        <div class="checkbox">
+                            <label>
+                                @Html.ShowCheckboxFor(x => x.ChangeNotifications.NotifyPackagePushed)
+                                <b>Notify when a package is pushed to @Config.Current.Brand using the organization account</b>
+                            </label>
+                            <div class="label-sibling">
+                                This setting enables notifications whenever a package is pushed using the organization
+                                account. We recommend to enable this setting so that organization members can inspect
+                                whether a package was pushed intentionally or not. Disabling this setting means no notification
+                                will be sent on push.
+                            </div>
+                        </div>
+
+                        <p>
+                            <strong>Note:</strong> We will always send important account management and security
+                            notices. Also, we never reveal the organization email address to other users.
+                        </p>
+
+                        <div class="row form-group">
+                            <div class="col-sm-6">
+                                <input type="submit" class="btn btn-primary form-control" value="Save" />
+                            </div>
+                            <div class="col-sm-6">
+                                <a href="#" role="button" class="btn btn-default form-control" id="cancel-change-notifications">
+                                    Cancel
+                                </a>
+                            </div>
+                        </div>
+                    }
+                </text>)
+
+            @ViewHelpers.Section(this,
+                "profile-picture",
+                @<text>Profile Picture @(Model.HasUnconfirmedEmailAddress ? "(preview)" : string.Empty)</text>,
+                @<text>@ViewHelpers.GravatarImage(Model.CurrentEmailAddress, CurrentUser.Username, Constants.GravatarElementSize)</text>,
+                @<text>
+                    @if (Model.HasUnconfirmedEmailAddress)
+                    {
+                        <p>
+                            This is a preview of how your profile picture will look once you have verified your
+                            current email address.
+                        </p>
+                    }
+
+                    We use the verified organization email address and
+                    <a href="http://www.gravatar.com" target="_blank">gravatar.com</a>
+                    to get the publicly visible profile picture.
+                    <a href="http://gravatar.com" target="_blank">Go to gravatar.com</a>
+                    to change the profile picture for your organization.
+                </text>)
+
+            @foreach (var curatedFeed in Model.CuratedFeeds)
+            {
+                @ViewHelpers.Section(this,
+                    "curated-feed-" + curatedFeed,
+                    @<text>Curated Feed</text>,
+                    @<text>@curatedFeed</text>,
+                    @<text>
+                        <div class="row form-group">
+                            <div class="col-sm-6">
+                                <a role="button" href="@Url.CuratedFeed(curatedFeed)"
+                                   class="btn btn-primary form-control">Manage</a>
+                            </div>
+                            <div class="col-sm-6">
+                                <a href="#" role="button" class="btn btn-default form-control" id="cancel-curated-feed-@curatedFeed">
+                                    Cancel
+                                </a>
+                            </div>
+                        </div>
+                    </text>)
+            }
+        </div>
+    </div>
+</section>
+
+@section bottomScripts {
+    @ViewHelpers.SectionsScript(this);
+    @Scripts.Render("~/Scripts/gallery/page-account.min.js")
+}

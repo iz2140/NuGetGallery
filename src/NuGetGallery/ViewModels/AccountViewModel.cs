@@ -7,6 +7,10 @@ namespace NuGetGallery
 {
     public abstract class AccountViewModel
     {
+        public User Account { get; set; }
+
+        public string AccountName { get; set; }
+
         public IList<string> CuratedFeeds { get; set; }
 
         public ChangeEmailViewModel ChangeEmail { get; set; }

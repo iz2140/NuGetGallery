@@ -14,7 +14,6 @@ using NuGetGallery.Areas.Admin;
 using NuGetGallery.Areas.Admin.Models;
 using NuGetGallery.Areas.Admin.ViewModels;
 using NuGetGallery.Authentication;
-using NuGetGallery.Configuration;
 using NuGetGallery.Framework;
 using NuGetGallery.Infrastructure.Authentication;
 using Xunit;
@@ -22,41 +21,22 @@ using Xunit;
 namespace NuGetGallery
 {
     public class UsersControllerFacts
+        : AccountsControllerFacts<UsersController, User, UserAccountViewModel>
     {
         public static readonly int CredentialKey = 123;
-
-        public class TheAccountAction : TestContainer
+        
+        public class TheAccountAction : TheAccountBaseAction
         {
-            [Fact]
-            public void WillGetCuratedFeedsManagedByTheCurrentUser()
+            protected override ActionResult InvokeAccount(UsersController controller)
             {
-                var controller = GetController<UsersController>();
-                controller.SetCurrentUser(new User { Key = 42 });
-
-                // act
-                controller.Account();
-
-                // verify
-                GetMock<ICuratedFeedService>()
-                    .Verify(query => query.GetFeedsForManager(42));
+                return controller.Account();
             }
 
-            [Fact]
-            public void WillReturnTheAccountViewModelWithTheCuratedFeeds()
+            protected override User GetCurrentUser(UsersController controller)
             {
-                var controller = GetController<UsersController>();
-                controller.SetCurrentUser(new User { Key = 42 });
-                GetMock<ICuratedFeedService>()
-                    .Setup(stub => stub.GetFeedsForManager(42))
-                    .Returns(new[] { new CuratedFeed { Name = "theCuratedFeed" } });
-
-                // act
-                var model = ResultAssert.IsView<UserAccountViewModel>(controller.Account(), viewName: "Account");
-
-                // verify
-                Assert.Equal("theCuratedFeed", model.CuratedFeeds.First());
+                return GetAccount(controller);
             }
-
+            
             [Fact]
             public void LoadsDescriptionsOfCredentialsInToViewModel()
             {
@@ -85,7 +65,6 @@ namespace NuGetGallery
                 Assert.Equal(Strings.CredentialType_ApiKey, descs[CredentialKind.Token].TypeCaption);
                 Assert.Equal(Strings.MicrosoftAccount_AccountNoun, descs[CredentialKind.External].TypeCaption);
             }
-
 
             [Fact]
             public void FiltersOutUnsupportedCredentialsInToViewModel()
@@ -129,70 +108,29 @@ namespace NuGetGallery
             }
         }
 
-        public class TheConfirmationRequiredAction : TestContainer
+        public class TheConfirmationRequiredAction : TheConfirmationRequiredBaseAction
         {
-            [Fact]
-            public void WillSendNewUserEmailWhenPosted()
+            protected override User GetCurrentUser(UsersController controller)
             {
-                var user = new User
-                {
-                    Username = "theUsername",
-                    UnconfirmedEmailAddress = "to@example.com",
-                    EmailConfirmationToken = "confirmation"
-                };
-
-                string sentConfirmationUrl = null;
-                MailAddress sentToAddress = null;
-
-                GetMock<IMessageService>()
-                    .Setup(m => m.SendNewAccountEmail(It.IsAny<MailAddress>(), It.IsAny<string>()))
-                    .Callback<MailAddress, string>((to, url) =>
-                    {
-                        sentToAddress = to;
-                        sentConfirmationUrl = url;
-                    });
-
-                var controller = GetController<UsersController>();
-                controller.SetCurrentUser(user);
-
-                controller.ConfirmationRequiredPost();
-
-                // We use a catch-all route for unit tests so we can see the parameters
-                // are passed correctly.
-                Assert.Equal(TestUtility.GallerySiteRootHttps + "account/confirm/theUsername/confirmation", sentConfirmationUrl);
-                Assert.Equal("to@example.com", sentToAddress.Address);
+                return GetAccount(controller);
             }
+
+            public override void SendsNewAccountEmailWhenPosted()
+                => base.SendsNewAccountEmailWhenPosted();
         }
 
-        public class TheChangeEmailSubscriptionAction : TestContainer
+        public class TheChangeEmailSubscriptionAction : TheChangeEmailSubscriptionBaseAction
         {
-            [Fact]
-            public async Task UpdatesEmailAllowedSetting()
+            protected override User GetCurrentUser(UsersController controller)
             {
-                var user = new User("aUsername")
-                {
-                    EmailAddress = "test@example.com",
-                    EmailAllowed = true
-                };
-
-                var controller = GetController<UsersController>();
-                controller.SetCurrentUser(user);
-                GetMock<IUserService>()
-                    .Setup(u => u.ChangeEmailSubscriptionAsync(user, false, true))
-                    .Returns(Task.CompletedTask);
-
-                var result = await controller.ChangeEmailSubscription(new UserAccountViewModel
-                {
-                    ChangeNotifications = new ChangeNotificationsViewModel
-                    {
-                        EmailAllowed = false,
-                        NotifyPackagePushed = true
-                    }
-                });
-
-                ResultAssert.IsRedirectToRoute(result, new { action = "Account" });
-                GetMock<IUserService>().Verify(u => u.ChangeEmailSubscriptionAsync(user, false, true));
+                return GetAccount(controller);
             }
+
+            public override Task UpdatesEmailPreferences(bool emailAllowed, bool notifyPackagePushed)
+                => base.UpdatesEmailPreferences(emailAllowed, notifyPackagePushed);
+            
+            public override Task DisplaysMessageOnUpdate()
+                => base.DisplaysMessageOnUpdate();
         }
 
         public class TheThanksAction : TestContainer
@@ -473,25 +411,26 @@ namespace NuGetGallery
                     .Verify(u => u.ConfirmEmailAddress(user, "aToken"));
             }
 
-            [Fact]
-            public async Task ShowsAnErrorForWrongUsername()
-            {
-                var user = new User
-                {
-                    Username = "aUsername",
-                    UnconfirmedEmailAddress = "old@example.com",
-                    EmailConfirmationToken = "aToken",
-                };
+            // TODO - change to permissions tests
+            //[Fact]
+            //public async Task ShowsAnErrorForWrongUsername()
+            //{
+            //    var user = new User
+            //    {
+            //        Username = "aUsername",
+            //        UnconfirmedEmailAddress = "old@example.com",
+            //        EmailConfirmationToken = "aToken",
+            //    };
 
-                var controller = GetController<UsersController>();
-                controller.SetCurrentUser(user);
+            //    var controller = GetController<UsersController>();
+            //    controller.SetCurrentUser(user);
 
-                var result = await controller.Confirm("wrongUsername", "aToken");
+            //    var result = await controller.Confirm("wrongUsername", "aToken");
 
-                var model = ResultAssert.IsView<ConfirmationViewModel>(result);
-                Assert.False(model.SuccessfulConfirmation);
-                Assert.True(model.WrongUsername);
-            }
+            //    var model = ResultAssert.IsView<ConfirmationViewModel>(result);
+            //    Assert.False(model.SuccessfulConfirmation);
+            //    Assert.True(model.WrongUsername);
+            //}
 
             [Fact]
             public async Task ShowsAnErrorForWrongToken()
